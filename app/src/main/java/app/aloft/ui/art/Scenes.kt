@@ -54,7 +54,8 @@ class ChartScene(private val route: List<Stop>, private val dist: Int, private v
         }
     }
 
-    override fun anim(b: Buf, t: Int) {
+    override fun anim(b: Buf, tick: Int) {
+        val t = tick / 2
         val (x, y) = here()
         val bob = (sin(t / 6.0) * 1.5).roundToInt()
         val yy = y - 8 + bob
@@ -108,7 +109,8 @@ class CampfireScene(private val level: Map<Element, Double>) : Scene(160, 64) {
         for (i in 0 until w step 3) b.p(i, 50 + (hash(i, 63) * 2).toInt(), rgb(0x3A5A30))
     }
 
-    override fun anim(b: Buf, t: Int) {
+    override fun anim(b: Buf, tick: Int) {
+        val t = tick / 2
         val fx = 80
         val fy = 56
         b.glow(fx, fy - 4, 26, rgb(0xF0A040), .3f, 5)

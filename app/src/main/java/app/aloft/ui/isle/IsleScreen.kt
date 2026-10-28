@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -79,41 +81,52 @@ fun IsleScreen(h: Home, nav: Nav, orb: Orb?) {
         said = null
     }
     val line = said ?: lines.getOrNull(i % lines.size.coerceAtLeast(1))
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.fillMaxWidth().background(C.ink).padding(3.dp)) {
-            PixelView(scene, Modifier.fillMaxWidth().pointerInput(scene) {
-                detectTapGestures { p ->
-                    val x = p.x / size.width * IslandScene.W
-                    val y = p.y / size.height * IslandScene.H
-                    val hit = scene.spots.entries.firstOrNull { (_, s) -> kotlin.math.abs(x - s.first) < 9 && y > s.second - 18 && y < s.second + 3 }
-                    if (hit != null) nav.push(Overlay.Spirit(hit.key)) else { said = null; i++ }
-                }
-            })
+    var showRequests by remember { mutableStateOf(false) }
+    var showRest by remember { mutableStateOf(false) }
+    // Everything fits on one screen: the island takes whatever height is left, letterboxed if short.
+    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.background(C.ink).padding(3.dp)) {
+                PixelView(scene, Modifier.pointerInput(scene) {
+                    detectTapGestures { p ->
+                        val x = p.x / size.width * IslandScene.W
+                        val y = p.y / size.height * IslandScene.H
+                        val hit = scene.spots.entries.firstOrNull { (_, s) -> kotlin.math.abs(x - s.first) < 11 && y > s.second - 24 && y < s.second + 3 }
+                        if (hit != null) nav.push(Overlay.Spirit(hit.key)) else { said = null; i++ }
+                    }
+                }, fitHeight = true)
+            }
         }
-        if (line != null) Column(Modifier.fillMaxWidth().heightIn(min = 92.dp).textBox().clickable { said = null; i++ }.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(line.who.uppercase(), style = T.Small.copy(color = line.color))
-            Text(line.text, style = T.Say)
-            if (lines.size > 1) Text("▼", style = T.Small.copy(color = C.sky), modifier = Modifier.align(Alignment.End))
+        if (line != null) Column(Modifier.fillMaxWidth().height(86.dp).textBox().clickable { said = null; i++ }.padding(horizontal = 14.dp, vertical = 9.dp)) {
+            Text(line.who.uppercase(), style = T.Small.copy(color = line.color), maxLines = 1)
+            Text(line.text, style = T.Body, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (e in Element.entries) {
                 val v = h.isle.of(e)
                 Column(
-                    Modifier.weight(1f).pixelBox(C.skyDeep, bevel = null, lip = null).clickable { nav.push(Overlay.Spirit(e)) }.padding(vertical = 6.dp),
+                    Modifier.weight(1f).pixelBox(C.skyDeep, bevel = null, lip = null).clickable { nav.push(Overlay.Spirit(e)) }.padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    SpiritIcon(e, v, scale = 2.dp, sleep = h.isle.mode == Mode.CALM)
+                    SpiritIcon(e, v, scale = 1.5.dp, sleep = h.isle.mode == Mode.CALM)
                     Text(e.word.of(h.ru), style = T.Small.copy(color = C.paper), maxLines = 1)
-                    Text(Words.stage(ctx, Stage.of(v)), style = T.Small.copy(color = C.faint), maxLines = 1)
-                    Cells(v, C.element(e), Modifier.padding(top = 3.dp), cell = 4.dp)
+                    Cells(v, C.element(e), Modifier.padding(top = 2.dp), cell = 4.dp)
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)) {
-            PixelButton(stringResource(R.string.log_training), { nav.push(Overlay.Log) }, kind = Kind.RED)
-            PixelButton(stringResource(if (h.calmToday) R.string.calm_off else R.string.calm_on), { c.write { island.calm(h.today, !h.calmToday) } }, kind = Kind.GHOST)
+        val done = h.requests.count { it.done }
+        Row(Modifier.fillMaxWidth().clickable { showRequests = true }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            for (a in h.requests) Box(Modifier.padding(end = 4.dp).size(10.dp).background(if (a.done) C.gold else C.sky))
+            Text(" " + stringResource(R.string.requests_strip, done, h.requests.size), style = T.Body.copy(color = C.paper2), modifier = Modifier.weight(1f), maxLines = 1)
+            Text("›", style = T.Heading.copy(color = C.gold))
         }
-        Eyebrow(stringResource(R.string.requests_title), Modifier.padding(top = 6.dp), color = C.gold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PixelButton(stringResource(R.string.log_training), { nav.push(Overlay.Log) }, Modifier.weight(1.4f), kind = Kind.RED)
+            PixelButton(stringResource(when { h.isle.mode == Mode.ANCHOR -> R.string.anchored; h.calmToday -> R.string.calm_today; else -> R.string.calm_on }), { showRest = true }, Modifier.weight(1f), kind = Kind.GHOST)
+        }
+    }
+    if (showRequests) Dialog(onDismiss = { showRequests = false }) {
+        Text(stringResource(R.string.requests_title), style = T.Title)
         for (a in h.requests) {
             val who = a.req.who
             Panel(Modifier.fillMaxWidth(), fill = if (a.done) C.gold else C.paper) {
@@ -125,12 +138,15 @@ fun IsleScreen(h: Home, nav: Nav, orb: Orb?) {
                 Text(if (a.done) a.req.thanks.of(h.ru) else a.req.text.of(h.ru), style = T.Body)
             }
         }
-        Text(stringResource(R.string.requests_hint), style = T.Small.copy(color = C.faint))
-        Box(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
-            val anchored = h.isle.mode == Mode.ANCHOR
-            Text(stringResource(if (anchored) R.string.anchor_up else R.string.anchor_down), style = T.Body.copy(color = C.paper2), textAlign = TextAlign.Center,
-                modifier = Modifier.clickable { c.write { island.anchor(!anchored) } }.padding(10.dp))
-        }
+        Text(stringResource(R.string.requests_hint), style = T.Small)
+        PixelButton(stringResource(R.string.close), { showRequests = false }, Modifier.fillMaxWidth(), kind = Kind.GHOST)
+    }
+    if (showRest) Dialog(onDismiss = { showRest = false }) {
+        val anchored = h.isle.mode == Mode.ANCHOR
+        Text(stringResource(R.string.rest_title), style = T.Title)
+        Text(stringResource(R.string.rest_hint), style = T.Body)
+        PixelButton(stringResource(if (h.calmToday) R.string.calm_off else R.string.calm_set), { c.write { island.calm(h.today, !h.calmToday) }; showRest = false }, Modifier.fillMaxWidth())
+        PixelButton(stringResource(if (anchored) R.string.anchor_up else R.string.anchor_down), { c.write { island.anchor(!anchored) }; showRest = false }, Modifier.fillMaxWidth(), kind = Kind.GHOST)
     }
     h.unread.firstOrNull()?.let { u -> Unread(h, u) }
 }

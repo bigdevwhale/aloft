@@ -23,7 +23,7 @@ object Art {
     @Volatile var still = false
 
     /** Art pixels advance about this often. */
-    const val FRAME_MS = 110L
+    const val FRAME_MS = 50L
 }
 
 /**
@@ -46,9 +46,12 @@ abstract class Scene(val w: Int, val h: Int) {
 
 fun Buf.toBitmap(): Bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { it.setPixels(d, 0, w, 0, 0, w, h) }
 
-/** Shows a scene scaled up with hard pixels, animating while on screen. Width fills, height follows. */
+/**
+ * Shows a scene scaled up with hard pixels, animating while on screen. Width fills and height follows,
+ * or with [fitHeight] the height fills and the width follows.
+ */
 @Composable
-fun PixelView(scene: Scene, modifier: Modifier = Modifier) {
+fun PixelView(scene: Scene, modifier: Modifier = Modifier, fitHeight: Boolean = false) {
     val base = remember(scene.key, scene.w, scene.h) { Buf(scene.w, scene.h).also { scene.base(it) } }
     val frame = remember(scene.w, scene.h) { Buf(scene.w, scene.h) }
     val bitmap = remember(scene.w, scene.h) { Bitmap.createBitmap(scene.w, scene.h, Bitmap.Config.ARGB_8888) }
@@ -64,7 +67,7 @@ fun PixelView(scene: Scene, modifier: Modifier = Modifier) {
             }
         }
     }
-    Canvas(modifier.aspectRatio(scene.w.toFloat() / scene.h)) {
+    Canvas(modifier.aspectRatio(scene.w.toFloat() / scene.h, matchHeightConstraintsFirst = fitHeight)) {
         val t = tick
         frame.copyFrom(base)
         scene.anim(frame, t)

@@ -263,9 +263,9 @@ object Spirits {
     /** The faint ring of colour round a great spirit. */
     fun aura(b: Buf, e: Element, x: Int, y: Int, t: Int) {
         val c = e.color.toInt()
-        for (dy in -11..11) for (dx in -11..11) {
+        for (dy in -15..15) for (dx in -15..15) {
             val r = kotlin.math.hypot(dx.toDouble(), dy * 1.1)
-            if (r > 8 && r < 11 && bay(x + dx + (t shr 3), y + dy) < 3) b.p(x + dx, y - 8 + dy, c)
+            if (r > 11 && r < 15 && bay(x + dx + (t shr 3), y + dy) < 3) b.p(x + dx, y - 12 + dy, c)
         }
     }
 

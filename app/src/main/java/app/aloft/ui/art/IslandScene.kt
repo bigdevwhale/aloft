@@ -78,7 +78,8 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         }
     }
 
-    override fun anim(b: Buf, t: Int) {
+    override fun anim(b: Buf, tick: Int) {
+        val t = tick * .5
         val lk = look
         val storm = lk.mode == Mode.STORM
         val cl = CLOUD.getValue(lk.time)
@@ -86,7 +87,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         if (lk.time == TimeOfDay.NIGHT) stars(b, t)
         if (lk.horizon > 0) horizonIsle(b, lk.horizon)
         if (lk.height > .5 && !storm) airship(b, t)
-        clouds(b, 148, t, .12, IntArray(3) { mix(cl[it], skyMid, .35f) }, 3, false)
+        clouds(b, 146, t, .1, IntArray(4) { mix(cl[it], skyMid, .45f) }, 3, back = true)
 
         val gust = Issue.GUSTS in lk.issues
         val cx = 86 + if (gust) (sin(t / 7.0) * 2).roundToInt() else 0
@@ -94,7 +95,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         if ((Building.RAINBOW in lk.buildings || lk.mode == Mode.CALM) && !storm) rainbow(b, cx, y + 14)
 
         val e = { k: Element -> lk.level[k] ?: 0.0 }
-        val rw = (34 + e(Element.EARTH) * 20).roundToInt()
+        val rw = (42 + e(Element.EARTH) * 18).roundToInt()
         val dep = (28 + e(Element.EARTH) * 32).roundToInt()
         rock(b, cx, y, rw, dep, t)
         if (lk.bunting.isNotEmpty()) bunting(b, cx, y, rw, lk.bunting, t)
@@ -121,8 +122,8 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         if (Building.FORGE in bs) forge(b, cx + (rw * .5).roundToInt(), y + 1, t)
         if (Building.SPRING in bs) spring(b, cx - (rw * .32).roundToInt(), y + 2, t)
         if (Building.GARDEN in bs) garden(b, cx + (rw * .18).roundToInt(), y + 2)
-        Decors.drawAll(b, lk.decor, cx, y, rw, dep, t, lk.time)
-        if (lk.height > .25 && bs.isNotEmpty() && !storm) people(b, cx, y, rw, min(4, bs.size), if (lk.mode == Mode.CALM) 0 else t)
+        Decors.drawAll(b, lk.decor, cx, y, rw, dep, t.toInt(), lk.time)
+        if (lk.height > .25 && bs.isNotEmpty() && !storm) people(b, cx, y, rw, min(4, bs.size), if (lk.mode == Mode.CALM) 0.0 else t)
 
         val water = e(Element.WATER)
         if (water > .3 && Issue.DROUGHT !in lk.issues) waterfall(b, cx + rw - 3, y, 1 + (water * 2).roundToInt(), t)
@@ -133,72 +134,120 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
             b.p(cx + side * (rw * (.62 + i * .06)).roundToInt(), y + 6 + fy, ROCK[2 + i % 2])
         }
 
+        // The spirits stand in a row at the front edge, in front of everything built behind them.
         for (k in Element.entries) {
             val (sx, sy) = spiritAt(k, cx, y, rw, t)
             spots[k] = sx to sy
             val v = e(k)
-            if (v < .12) { Spirits.spark(b, k, sx, sy, t); continue }
+            if (k != Element.AIR) for (dx in -6..6) for (dy in -1..1) if (dx * dx / 36.0 + dy * dy <= 1.2) b.p(sx + dx, sy + dy, rgb(0x1A1410), .35f)
+            if (v < .12) { Spirits.spark(b, k, sx, sy, t.toInt()); continue }
             val sleep = lk.mode == Mode.CALM
-            if (v >= .75 && !sleep) Spirits.aura(b, k, sx, sy, t)
-            b.blit(Spirits.draw(k, v, (t shr 2) and 3, sleep, if (lk.mode == Mode.ANCHOR) .45f else 0f, small = true), sx - Spirits.CX, sy - Spirits.BY - 1)
+            if (v >= .75 && !sleep) Spirits.aura(b, k, sx, sy, t.toInt())
+            b.blit(Spirits.draw(k, v, (t.toInt() shr 2) and 3, sleep, if (lk.mode == Mode.ANCHOR) .45f else 0f), sx - Spirits.CX, sy - Spirits.BY - 1)
             if (sleep) {
-                val z = (t / 3 + k.ordinal * 5) % 18
-                val zx = sx + 5 + z / 6
-                val zy = sy - 16 - z / 2
+                val z = ((t / 3).toInt() + k.ordinal * 5) % 18
+                val zx = sx + 7 + z / 6
+                val zy = sy - 22 - z / 2
                 val a = 1f - z / 18f
                 b.r(zx, zy, 3, 1, rgb(0xFFFFFF), a); b.p(zx + 1, zy + 1, rgb(0xFFFFFF), a); b.r(zx, zy + 2, 3, 1, rgb(0xFFFFFF), a)
             }
         }
+        // A guest hovers beside the island, never in the crowd on it.
         lk.guest?.let { g ->
-            val gx = cx - (rw * .3).roundToInt()
-            val gy = if (g == Guest.WANDERER) y + 2 else y - 22 + (sin(t / 9.0) * 2).roundToInt()
-            b.blitA(Guests.draw(g, (t shr 2) and 3), gx - Guests.CX, gy - Guests.BY - 1)
+            val gx = cx - rw - 2
+            val gy = y - 14 + (sin(t / 9.0) * 2).roundToInt()
+            b.blitA(Guests.draw(g, (t.toInt() shr 2) and 3), gx - Guests.CX, gy - Guests.BY - 1)
         }
 
-        clouds(b, 162, t, .3, cl, 7, true)
+        clouds(b, 160, t, .25, cl, 7, back = false)
 
         if (lk.height < .32) {
             val dens = (.32 - lk.height) / .32 * .75
-            val fog = mix(cl[0], cl[1], .5f)
-            for (yy in max(0, y - 26) until H) for (xx in 0 until W) if (bay(xx + (t shr 3), yy) / 16.0 < dens * ((yy - y + 26) / 40.0).coerceIn(0.0, 1.0)) b.p(xx, yy, fog)
+            val fog = mix(cl[2], cl[3], .5f)
+            for (yy in max(0, y - 26) until H) for (xx in 0 until W) if (bay(xx + (t.toInt() shr 3), yy) / 16.0 < dens * ((yy - y + 26) / 40.0).coerceIn(0.0, 1.0)) b.p(xx, yy, fog)
         }
         if (gust && !storm) for (i in 0..5) {
             val wy = 20 + (hash(i, 51) * 110).toInt()
-            val wx = ((t * 3 + (hash(i, 52) * 200).toInt()) % (W + 40)) - 20
+            val wx = ((t * 3 + (hash(i, 52) * 200).toInt()) % (W + 40)).toInt() - 20
             b.r(wx, wy, 8 + (i % 3) * 3, 1, rgb(0xFFFFFF), .8f)
         }
         weather(b, t, cx, y, storm)
-        orb(b, t)
+        orb(b, tick)
     }
 
-    private fun spiritAt(k: Element, cx: Int, y: Int, rw: Int, t: Int): Pair<Int, Int> = when (k) {
-        Element.AIR -> cx + (sin(t / 35.0) * rw * .9).roundToInt() to y - 24 + (sin(t / 12.0) * 3).roundToInt()
-        Element.EARTH -> cx - (rw * .78).roundToInt() to y + 3
-        Element.WATER -> cx + (rw * .82).roundToInt() - 2 to y + 1 + sin(t / 10.0).roundToInt()
-        Element.WOOD -> cx - (rw * .18).roundToInt() to y - 1
-        Element.FIRE -> cx + (rw * .42).roundToInt() to y + 3
+    private fun spiritAt(k: Element, cx: Int, y: Int, rw: Int, t: Double): Pair<Int, Int> = when (k) {
+        Element.AIR -> cx + (sin(t / 40.0) * rw * .45).roundToInt() to y - 30 + (sin(t / 11.0) * 2.5).roundToInt()
+        Element.EARTH -> cx - (rw * .64).roundToInt() to y + 5
+        Element.WOOD -> cx - (rw * .21).roundToInt() to y + 5
+        Element.FIRE -> cx + (rw * .2).roundToInt() to y + 5
+        Element.WATER -> cx + (rw * .63).roundToInt() to y + 5
     }
 
-    private fun stars(b: Buf, t: Int) {
+    private fun stars(b: Buf, t: Double) {
         for (i in 0 until 46) {
             val sx = (hash(i, 1) * W).toInt()
             val sy = (hash(i, 2) * 120).toInt()
-            val tw = (t + (hash(i, 3) * 50).toInt()) % 50
+            val tw = (t.toInt() + (hash(i, 3) * 50).toInt()) % 50
             b.p(sx, sy, if (tw < 4) rgb(0x8090C0) else rgb(0xE8ECFF))
             if (i % 9 == 0 && tw > 40) { b.p(sx - 1, sy, rgb(0x8090C0)); b.p(sx + 1, sy, rgb(0x8090C0)) }
         }
     }
 
-    private fun clouds(b: Buf, baseY: Int, t: Int, speed: Double, pal: IntArray, seed: Int, fill: Boolean) {
-        val list = (0 until 11).map { i ->
-            val r = 10 + (hash(i, seed * 13) * 9).toInt()
-            val cx = ((i * 22 + t * speed + seed * 31) % (W + 50)) - 25
-            Triple(cx, baseY + (hash(i, seed * 17) * 6).toInt(), r)
+    private class Strip(val buf: Buf, val top: Int, val period: Int)
+
+    private val strips = HashMap<Boolean, Strip>()
+
+    /**
+     * A sea of cumulus: overlapping puffs lit from above that melt into a body darkening downwards.
+     * Each layer is drawn once into a strip that wraps round, then slid along; the back layer is
+     * paler, smaller and slower.
+     */
+    private fun clouds(b: Buf, baseY: Int, t: Double, speed: Double, four: IntArray, seed: Int, back: Boolean) {
+        val st = strips.getOrPut(back) { strip(baseY, four, seed, back) }
+        val shift = Math.floorMod((t * speed).toInt(), st.period)
+        val sb = st.buf
+        for (y in 0 until sb.h) {
+            val yy = st.top + y
+            if (yy !in 0 until H) continue
+            for (x in 0 until W) {
+                val c = sb.d[y * sb.w + Math.floorMod(x - shift, st.period)]
+                if (c ushr 24 != 0) b.d[yy * W + x] = c
+            }
         }
-        for ((cx, cy, r) in list) b.el(cx + 2, cy + 2.0, r, (r * .55).roundToInt(), pal[2])
-        for ((cx, cy, r) in list) b.el(cx, cy.toDouble(), r, (r * .55).roundToInt(), pal[1])
-        for ((cx, cy, r) in list) b.el(cx - 2, cy - 2.0, (r * .6).roundToInt(), (r * .3).roundToInt(), pal[0])
-        if (fill) b.r(0, baseY + 6, W, H - baseY, pal[1])
+    }
+
+    private fun strip(baseY: Int, four: IntArray, seed: Int, back: Boolean): Strip {
+        // Seven steps between the four tones keep the dither between neighbours fine and quiet.
+        val pal = IntArray(7) { i -> val f = i / 6.0 * 3; val j = minOf(2, f.toInt()); mix(four[j], four[j + 1], (f - j).toFloat()) }
+        val period = W + 60
+        val top = baseY - 24
+        val sb = Buf(period, H - top)
+        fun body(y: Int) = if (back) 0.0 else (.45 - (y - baseY - 4).toDouble() / (H - baseY) * .45).coerceIn(0.0, .45)
+        if (!back) for (y in baseY + 4 until H) for (x in 0 until period) sb.p(x, y - top, rp(pal, body(y), x, y))
+        val n = if (back) 14 else 13
+        val puffs = (0 until n).map { i ->
+            val r = (if (back) 8 else 11) + (hash(i, seed * 13) * (if (back) 6 else 9)).toInt()
+            val x = (i * period.toDouble() / n + hash(i, seed) * 8).roundToInt()
+            val y = baseY + (hash(i, seed * 17) * (if (back) 6 else 8)).toInt() - r / 3
+            Triple(x, y, r)
+        }.sortedBy { it.second }
+        // Light comes from above; towards the bottom each puff melts into the body below, so the
+        // puffs read as one heaped cloud rather than separate balls.
+        for ((px, py, r) in puffs) {
+            val ry = r * .78
+            for (dy in -r..r) for (dx in -r..r) {
+                val nx = dx / (r + .5)
+                val ny = dy / (ry + .5)
+                val d = nx * nx + ny * ny
+                if (d > 1.0) continue
+                val nz = sqrt(max(0.0, 1 - d))
+                var light = .5 - ny * .42 - nx * .12 + nz * .18
+                if (ny > 0) light = max(light, body(py + dy) + .08)
+                val x = Math.floorMod(px + dx, period)
+                sb.p(x, py + dy - top, rp(pal, light.coerceIn(0.0, 1.0), x, py + dy))
+            }
+        }
+        return Strip(sb, top, period)
     }
 
     private fun rainbow(b: Buf, cx: Int, cy: Int) {
@@ -215,7 +264,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         }
     }
 
-    private fun airship(b: Buf, t: Int) {
+    private fun airship(b: Buf, t: Double) {
         val ax = ((t * .25) % (W + 60)).toInt() - 30
         val ay = 26 + (sin(t / 25.0) * 2).roundToInt()
         val night = look.time == TimeOfDay.NIGHT
@@ -227,7 +276,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         b.r(ax - 4, ay + 8, 9, 3, rgb(0x6A3A22))
         val win = if (night) rgb(0xFFD860) else rgb(0xC8E0FF)
         b.p(ax - 2, ay + 9, win); b.p(ax + 1, ay + 9, win)
-        b.p(ax - 13, ay + (t shr 2) % 2, envD)
+        b.p(ax - 13, ay + (t.toInt() shr 2) % 2, envD)
     }
 
     /** The next stop of the voyage, small and hazy on the horizon, growing as it nears. */
@@ -243,7 +292,21 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         }
     }
 
-    private fun rock(b: Buf, cx: Int, y: Int, rw: Int, dep: Int, t: Int) {
+    private var body: Buf? = null
+
+    /** The island's rock and grass: drawn once, then laid where the island floats this frame. */
+    private fun rock(b: Buf, cx: Int, y: Int, rw: Int, dep: Int, t: Double) {
+        val bb = body ?: Buf(2 * rw + 5, dep + 16).also { body = it; rockInto(it, rw + 2, 6, rw, dep) }
+        b.blit(bb, cx - rw - 2, y - 6)
+        for (i in 0..2) {
+            val bx = cx - 10 + i * 10 + if (i == 1) 2 else 0
+            val by = y + dep + 8 + i * 4 + (sin(t / 14.0 + i) * 1.5).roundToInt()
+            val r = 3 - if (i == 2) 1 else 0
+            b.el(bx, by, r, r - 1, ROCK[2]); b.p(bx - 1, by - 1, ROCK[0]); b.p(bx, by + r - 1, ROCK[4])
+        }
+    }
+
+    private fun rockInto(b: Buf, cx: Int, y: Int, rw: Int, dep: Int) {
         val iss = look.issues
         for (xc in cx - rw..cx + rw) {
             val dx = (xc - cx).toDouble() / rw
@@ -271,12 +334,6 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
                 if (i % 3 == 0) x += (hash((k * 10).toInt(), i) * 3).toInt() - 1
             }
         }
-        for (i in 0..2) {
-            val bx = cx - 10 + i * 10 + if (i == 1) 2 else 0
-            val by = y + dep + 8 + i * 4 + (sin(t / 14.0 + i) * 1.5).roundToInt()
-            val r = 3 - if (i == 2) 1 else 0
-            b.el(bx, by, r, r - 1, ROCK[2]); b.p(bx - 1, by - 1, ROCK[0]); b.p(bx, by + r - 1, ROCK[4])
-        }
         val dry = if (Issue.DROUGHT in iss) .85f else if (Issue.CRACK in iss) .35f else 0f
         val g = IntArray(3) { mix(GRASS[it], DRY[it], dry) }
         b.el(cx, y, rw, 4, g[1])
@@ -294,7 +351,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         }
     }
 
-    private fun bunting(b: Buf, cx: Int, y: Int, rw: Int, cols: List<Int>, t: Int) {
+    private fun bunting(b: Buf, cx: Int, y: Int, rw: Int, cols: List<Int>, t: Double) {
         val x0 = cx - (rw * .6).roundToInt()
         val x1 = cx + (rw * .6).roundToInt()
         val n = cols.size * 3
@@ -307,7 +364,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
             val x = (x0 + u * (x1 - x0)).roundToInt()
             val yy = y + 7 + (sin(u * PI) * 4).roundToInt()
             val c = cols[i % cols.size]
-            val sway = if (((t shr 3) + i) % 4 == 0) 1 else 0
+            val sway = if (((t.toInt() shr 3) + i) % 4 == 0) 1 else 0
             b.r(x - 1, yy, 3, 1, c); b.r(x, yy + 1, 2, 1, c); b.p(x + sway, yy + 2, c)
         }
     }
@@ -323,7 +380,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         b.el(x - 1 + lean, cy - 1, max(1, r - 2), max(1, r - 3), leaf[0])
     }
 
-    private fun mill(b: Buf, x: Int, foot: Int, t: Int, speed: Double) {
+    private fun mill(b: Buf, x: Int, foot: Int, t: Double, speed: Double) {
         for (i in 0 until 14) {
             val w = 7 - i / 5
             b.r(x - w + 3, foot - i, 2 * w - 2, 1, if (i % 4 == 0) rgb(0xB8A890) else rgb(0xD8CCB4))
@@ -338,11 +395,11 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         b.p(x + 3, foot - 15, rgb(0x3A2A20))
     }
 
-    private fun forge(b: Buf, x: Int, foot: Int, t: Int) {
+    private fun forge(b: Buf, x: Int, foot: Int, t: Double) {
         b.r(x - 6, foot - 7, 12, 7, rgb(0x8A7060)); b.r(x - 6, foot - 7, 12, 1, rgb(0xA89080))
         for (i in 0..3) b.r(x - 7 + i, foot - 8 - i, 14 - 2 * i, 1, rgb(0xB84A3A))
         b.r(x + 3, foot - 14, 3, 6, rgb(0x6A5A50))
-        b.r(x - 2, foot - 4, 3, 4, if ((t shr 1) % 3 != 0) rgb(0xFFB040) else rgb(0xFFE080))
+        b.r(x - 2, foot - 4, 3, 4, if ((t.toInt() shr 1) % 3 != 0) rgb(0xFFB040) else rgb(0xFFE080))
         for (i in 0..3) {
             val sy = (t * .5 + i * 6) % 24
             val sx = x + 4 + (sin((t + i * 9) / 8.0) * 1.5).roundToInt() + (sy / 6).toInt()
@@ -350,7 +407,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         }
     }
 
-    private fun spring(b: Buf, x: Int, foot: Int, t: Int) {
+    private fun spring(b: Buf, x: Int, foot: Int, t: Double) {
         b.el(x, foot, 7, 2, rgb(0x7A6A5A)); b.el(x, foot, 5, 1, rgb(0x5AC8C0)); b.p(x - 2, foot - 1, rgb(0xC8FFF8))
         for (i in 0..2) {
             val sy = (t * .4 + i * 5) % 14
@@ -365,7 +422,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         for (dx in intArrayOf(-9, -8, 9, 10)) { b.p(x + dx, foot - 1, rgb(0xF0A0C0)); b.p(x + dx, foot, rgb(0x3A7A30)) }
     }
 
-    private fun tower(b: Buf, x: Int, foot: Int, t: Int) {
+    private fun tower(b: Buf, x: Int, foot: Int, t: Double) {
         for (i in 0 until 24) b.r(x - 4, foot - i, 8, 1, if (i % 5 == 0) rgb(0xA89A8A) else rgb(0xC8BAA8))
         b.r(x + 2, foot - 24, 2, 24, rgb(0x8A7C6C))
         val lit = look.time == TimeOfDay.NIGHT || look.time == TimeOfDay.EVENING
@@ -375,28 +432,28 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
             b.r(x - 5 + k, foot - 25 - i, 10 - 2 * k, 1, if (i < 2) rgb(0x2A4A90) else rgb(0x3A64B8))
         }
         b.line(x, foot - 34, x, foot - 38, rgb(0x3A2A20))
-        b.r(x + 1, foot - 38, 4, 2, rgb(0xE85050)); b.p(x + 5, foot - 37 - (t shr 2) % 2, rgb(0xE85050))
+        b.r(x + 1, foot - 38, 4, 2, rgb(0xE85050)); b.p(x + 5, foot - 37 - (t.toInt() shr 2) % 2, rgb(0xE85050))
     }
 
-    private fun people(b: Buf, cx: Int, y: Int, rw: Int, n: Int, t: Int) {
+    private fun people(b: Buf, cx: Int, y: Int, rw: Int, n: Int, t: Double) {
         val cols = intArrayOf(rgb(0xC84A3A), rgb(0x3A64B8), rgb(0xE8B840), rgb(0x8A5AA8))
         for (i in 0 until n) {
             val x = cx + (sin(t / (50.0 + i * 17) + i * 2) * rw * .6).roundToInt()
             val yy = y + if (i % 2 == 1) 2 else 0
-            val step = (t shr 2) % 2
+            val step = (t.toInt() shr 2) % 2
             b.r(x, yy - 3, 1, 2, cols[i % 4]); b.p(x, yy - 4, rgb(0xF0C8A0)); b.p(x - step, yy - 1, rgb(0x3A2A20))
         }
     }
 
-    private fun waterfall(b: Buf, x: Int, y: Int, w: Int, t: Int) {
+    private fun waterfall(b: Buf, x: Int, y: Int, w: Int, t: Double) {
         for (yy in y + 2 until H) {
-            for (i in 0 until w) b.p(x + i, yy, if (Math.floorMod(yy - t * 2 + i * 2, 4) == 0) rgb(0xFFFFFF) else rgb(0x8AD0FF))
+            for (i in 0 until w) b.p(x + i, yy, if (Math.floorMod(yy - (t * 2).toInt() + i * 2, 4) == 0) rgb(0xFFFFFF) else rgb(0x8AD0FF))
             b.p(x + w, yy, rgb(0x4A90D0))
         }
     }
 
     /** Real weather outside, and the storm of a sudden jump in training. */
-    private fun weather(b: Buf, t: Int, cx: Int, y: Int, storm: Boolean) {
+    private fun weather(b: Buf, t: Double, cx: Int, y: Int, storm: Boolean) {
         val wx = look.wx
         if (storm) {
             b.r(0, 0, W, H, rgb(0x14162C), .5f)
@@ -409,40 +466,40 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
         if (storm || wx == Wx.RAIN || wx == Wx.STORM) {
             val n = if (storm || wx == Wx.STORM) 50 else 30
             for (i in 0 until n) {
-                val ry = Math.floorMod((hash(i, 21) * H).toInt() + t * 5, H)
-                val rx = Math.floorMod((hash(i, 22) * W).toInt() - t * 2, W)
+                val ry = Math.floorMod((hash(i, 21) * H).toInt() + (t * 5).toInt(), H)
+                val rx = Math.floorMod((hash(i, 22) * W).toInt() - (t * 2).toInt(), W)
                 b.p(rx, ry, rgb(0x9AB0E0)); b.p(rx - 1, ry + 1, rgb(0x9AB0E0)); b.p(rx - 1, ry + 2, rgb(0x6A80B0))
             }
         }
         if (wx == Wx.SNOW) for (i in 0 until 40) {
-            val sy = Math.floorMod((hash(i, 23) * H).toInt() + t, H)
+            val sy = Math.floorMod((hash(i, 23) * H).toInt() + t.toInt(), H)
             val sx = Math.floorMod((hash(i, 24) * W).toInt() + (sin((t + i * 13) / 9.0) * 2).roundToInt(), W)
             b.p(sx, sy, rgb(0xFFFFFF))
         }
-        if (wx == Wx.FOG) for (yy in 0 until H) for (xx in 0 until W) if (bay(xx + (t shr 3), yy) < 4) b.p(xx, yy, rgb(0xE8ECF4), .7f)
-        if (storm && t % 80 < 4) {
-            if (t % 80 < 2) b.r(0, 0, W, H, rgb(0xFFFFFF), .4f)
+        if (wx == Wx.FOG) for (yy in 0 until H) for (xx in 0 until W) if (bay(xx + (t.toInt() shr 3), yy) < 4) b.p(xx, yy, rgb(0xE8ECF4), .7f)
+        if (storm && t.toInt() % 80 < 4) {
+            if (t.toInt() % 80 < 2) b.r(0, 0, W, H, rgb(0xFFFFFF), .4f)
             var lx = cx + 20
             var ly = y - 40
             while (ly < y - 2) {
-                val nx = lx + (hash(ly, t / 80) * 7).toInt() - 3
+                val nx = lx + (hash(ly, t.toInt() / 80) * 7).toInt() - 3
                 b.line(lx, ly, nx, ly + 4, rgb(0xFFF8C0))
                 lx = nx; ly += 4
             }
         }
     }
 
-    private fun orb(b: Buf, t: Int) {
+    private fun orb(b: Buf, tick: Int) {
         val k = look.orb ?: return
-        if (orbT0 < 0) orbT0 = t
-        val f = (t - orbT0) / 22.0
+        if (orbT0 < 0) orbT0 = tick
+        val f = (tick - orbT0) / 44.0
         val (tx, ty) = spots[k] ?: return
         if (f > 1.6) return
         if (f <= 1) {
             val i = k.ordinal
             for (j in 0..5) {
                 val ff = max(0.0, f - j * .03)
-                val (ox, oy) = quad(W / 2.0, H + 4.0, W / 2.0 + (i - 2) * 34, 30.0, tx.toDouble(), ty - 8.0, ff)
+                val (ox, oy) = quad(W / 2.0, H + 4.0, W / 2.0 + (i - 2) * 34, 30.0, tx.toDouble(), ty - 12.0, ff)
                 if (j == 0) { b.r(ox.roundToInt() - 1, oy.roundToInt() - 1, 3, 3, k.color.toInt()); b.p(ox.roundToInt(), oy.roundToInt(), rgb(0xFFFFFF)) }
                 else b.p(ox.roundToInt(), oy.roundToInt(), mix(k.color.toInt(), rgb(0xFFFFFF), j / 6f))
             }
@@ -450,7 +507,7 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
             val r = ((f - 1) * 20).roundToInt()
             for (j in 0 until 12) {
                 val a = j / 12.0 * 2 * PI
-                b.p((tx + cos(a) * r).roundToInt(), (ty - 8 + sin(a) * r).roundToInt(), if (r < 6) rgb(0xFFFFFF) else k.color.toInt())
+                b.p((tx + cos(a) * r).roundToInt(), (ty - 12 + sin(a) * r).roundToInt(), if (r < 6) rgb(0xFFFFFF) else k.color.toInt())
             }
         }
     }
@@ -466,10 +523,10 @@ class IslandScene(val look: IsleLook) : Scene(W, H) {
             TimeOfDay.NIGHT to intArrayOf(rgb(0x080C26), rgb(0x121A48), rgb(0x1C2858), rgb(0x34447A)),
         )
         val CLOUD = mapOf(
-            TimeOfDay.MORNING to intArrayOf(rgb(0xFFF4E8), rgb(0xF0D0D0), rgb(0xC8A8C0)),
-            TimeOfDay.DAY to intArrayOf(rgb(0xFFFFFF), rgb(0xDFE8F8), rgb(0xA8B8E0)),
-            TimeOfDay.EVENING to intArrayOf(rgb(0xFFD8C0), rgb(0xE8A0A8), rgb(0x9A6890)),
-            TimeOfDay.NIGHT to intArrayOf(rgb(0x6A78A0), rgb(0x465484), rgb(0x2C3664)),
+            TimeOfDay.MORNING to intArrayOf(rgb(0xB898B8), rgb(0xE2BCC8), rgb(0xF8E0DC), rgb(0xFFF8F0)),
+            TimeOfDay.DAY to intArrayOf(rgb(0x9FB0D8), rgb(0xC9D6F0), rgb(0xEEF3FC), rgb(0xFFFFFF)),
+            TimeOfDay.EVENING to intArrayOf(rgb(0x8A5E86), rgb(0xC88AA0), rgb(0xF4B8B0), rgb(0xFFE6D0)),
+            TimeOfDay.NIGHT to intArrayOf(rgb(0x2C365E), rgb(0x404C7C), rgb(0x5A689A), rgb(0x7A88B8)),
         )
         val ROCK = intArrayOf(rgb(0xA89684), rgb(0x84725F), rgb(0x605048), rgb(0x40343A), rgb(0x2A2028))
         private val GRASS = intArrayOf(rgb(0x9AD85A), rgb(0x5AA83A), rgb(0x3A7A30))

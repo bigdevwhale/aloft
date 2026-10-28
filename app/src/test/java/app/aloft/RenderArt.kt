@@ -18,6 +18,8 @@ import app.aloft.ui.art.IsleLook
 import app.aloft.ui.art.Spirits
 import app.aloft.ui.art.TimeOfDay
 import app.aloft.ui.art.blit
+import app.aloft.ui.art.el
+import app.aloft.ui.art.outlineAll
 import app.aloft.ui.art.rgb
 import app.aloft.ui.art.toBitmap
 import org.junit.Test
@@ -80,6 +82,25 @@ class RenderArt {
         isle("isle-storm", IsleLook(lv(.62, .5, .46, .48, .4), Mode.STORM, emptySet(), setOf(Building.MILL, Building.FORGE), .62, TimeOfDay.DAY, guest = Guest.THUNDERBIRD))
         isle("isle-calm", IsleLook(lv(.62, .5, .46, .48, .4), Mode.CALM, emptySet(), setOf(Building.MILL), .6, TimeOfDay.MORNING, wx = Wx.SNOW, guest = Guest.SNOWOWL))
         isle("isle-anchor", IsleLook(lv(.5, .4, .3, .3, .3), Mode.ANCHOR, setOf(Issue.SLIDE), emptySet(), .4, TimeOfDay.DAY, wx = Wx.RAIN))
+    }
+
+    /** The launcher icon at 1:1, read by tools/icon.py: a sylph over a little island. */
+    @Test fun icon() {
+        val b = Buf(32, 32)
+        b.blit(Spirits.draw(Element.AIR, .6, 0), 1, -2)
+        val isle = Buf(32, 32)
+        val rock = intArrayOf(rgb(0xA89684), rgb(0x84725F), rgb(0x605048), rgb(0x40343A))
+        for (x in 5..27) {
+            val a = kotlin.math.abs(x - 16) / 11.5
+            val d = (Math.pow(1 - a, 1.1) * 8).toInt() + 1
+            for (y in 0 until d) isle.p(x, 25 + y, rock[((y / 2.5 + (if (x > 16) 1.0 else 0.0) + (if ((x + y) % 2 == 0) .4 else 0.0)).toInt()).coerceIn(0, 3)])
+        }
+        isle.el(16, 24, 11, 2, rgb(0x5AA83A))
+        isle.el(14, 23, 8, 1, rgb(0x9AD85A))
+        for (y in 25..31) { isle.p(26, y, if (y % 3 == 0) rgb(0xFFFFFF) else rgb(0x8AD0FF)); isle.p(27, y, rgb(0x4A90D0)) }
+        isle.outlineAll(rgb(0x141A36))
+        b.blit(isle, 0, 0)
+        save(b, "icon", 1)
     }
 
     @Test fun chart() {
