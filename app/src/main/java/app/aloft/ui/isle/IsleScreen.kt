@@ -85,8 +85,10 @@ fun IsleScreen(h: Home, nav: Nav, orb: Orb?) {
     var showRest by remember { mutableStateOf(false) }
     // Everything fits on one screen: the island takes whatever height is left, letterboxed if short.
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(Modifier.background(C.ink).padding(3.dp)) {
+        // On a tall screen the sky simply continues above the picture.
+        val skyTop = androidx.compose.ui.graphics.Color(IslandScene.SKY.getValue(h.look.time)[0])
+        Box(Modifier.weight(1f).fillMaxWidth().background(C.ink).padding(3.dp).background(skyTop), contentAlignment = Alignment.BottomCenter) {
+            Box {
                 PixelView(scene, Modifier.pointerInput(scene) {
                     detectTapGestures { p ->
                         val x = p.x / size.width * IslandScene.W
